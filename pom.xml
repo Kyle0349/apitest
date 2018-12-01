@@ -13,5 +13,9 @@
         <module>hive</module>
     </modules>
 
+    <properties>
+        <junit.version>4.4</junit.version>
+    </properties>
+
 
 </project>
