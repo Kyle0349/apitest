@@ -12,6 +12,7 @@
         <module>spark</module>
         <module>hive</module>
         <module>hbase</module>
+        <module>kettle</module>
     </modules>
 
     <properties>
