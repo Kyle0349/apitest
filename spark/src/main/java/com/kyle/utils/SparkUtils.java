@@ -1,9 +1,10 @@
 package com.kyle.utils;
 
+import org.apache.hadoop.log.LogLevel;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
-
-import java.io.Serializable;
+import org.apache.spark.streaming.Durations;
+import org.apache.spark.streaming.api.java.JavaStreamingContext;
 
 public class SparkUtils {
 
@@ -18,6 +19,21 @@ public class SparkUtils {
 
         return sc;
 
+
+    }
+
+
+    public static JavaStreamingContext getStreamingContext(){
+        SparkConf conf = new SparkConf()
+                .setMaster("local[2]")
+                .setAppName("StreamTest")
+                .set("spark.default.parallelism", "2");
+
+        JavaSparkContext jsc = getSparkContext();
+        jsc.setLogLevel("WARN");
+
+        JavaStreamingContext jssc = new JavaStreamingContext(jsc, Durations.seconds(5));
+        return jssc;
 
     }
 
