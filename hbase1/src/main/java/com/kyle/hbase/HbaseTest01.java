@@ -15,8 +15,14 @@ public class HbaseTest01 {
         Statement stmt = conn.createStatement();
         ResultSet resultSet = stmt.executeQuery(sql);
         while (resultSet.next()){
-            String string = resultSet.getString(0);
-            System.out.println(string);
+            String string = resultSet.getString(1);
+            String gender = resultSet.getString("gender");
+            String name = resultSet.getString("name");
+            String chinese = resultSet.getString("chinese");
+            String math = resultSet.getString("math");
+
+            System.out.println(gender + " | " + name + " | " + chinese + " | " + math);
+
         }
 
 
