@@ -32,7 +32,7 @@ public class SparkUtils {
         JavaSparkContext jsc = getSparkContext();
         jsc.setLogLevel("WARN");
 
-        JavaStreamingContext jssc = new JavaStreamingContext(jsc, Durations.seconds(5));
+        JavaStreamingContext jssc = new JavaStreamingContext(jsc, Durations.seconds(1));
         return jssc;
 
     }
