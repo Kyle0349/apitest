@@ -1,4 +1,4 @@
-package com.kyle.spark;
+package com.kyle.spark160.core;
 
 /**
  * 合并两个RDD，生成一个新的RDD。实例中包含两个Iterable值，第一个表示RDD1中相同值，第二个表示RDD2中相同值（key值），

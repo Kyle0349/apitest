@@ -1,4 +1,4 @@
-package com.kyle.utils;
+package com.kyle.spark160.utils;
 
 import org.apache.hadoop.log.LogLevel;
 import org.apache.spark.SparkConf;
@@ -32,7 +32,7 @@ public class SparkUtils {
         JavaSparkContext jsc = getSparkContext();
         jsc.setLogLevel("WARN");
 
-        JavaStreamingContext jssc = new JavaStreamingContext(jsc, Durations.seconds(1));
+        JavaStreamingContext jssc = new JavaStreamingContext(jsc, Durations.seconds(10));
         return jssc;
 
     }

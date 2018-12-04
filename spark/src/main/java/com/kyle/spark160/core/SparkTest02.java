@@ -1,6 +1,6 @@
-package com.kyle.spark;
+package com.kyle.spark160.core;
 
-import com.kyle.utils.SparkUtils;
+import com.kyle.spark160.utils.SparkUtils;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
