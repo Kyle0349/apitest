@@ -1,4 +1,4 @@
-package com.kyle.spark.sparkstreaming;
+package com.kyle.spark230.sparkstreaming;
 
 public class SparkStreaming01 {
 

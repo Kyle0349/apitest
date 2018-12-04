@@ -1,4 +1,4 @@
-package com.kyle.spark.sparksql;
+package com.kyle.spark230.sparksql;
 
 public class SparkSql01 {
 
