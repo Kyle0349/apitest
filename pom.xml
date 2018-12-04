@@ -12,6 +12,7 @@
         <module>spark</module>
         <module>hive</module>
         <module>hbase1</module>
+        <module>spark230</module>
     </modules>
 
     <properties>
