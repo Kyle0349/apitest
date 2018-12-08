@@ -13,6 +13,7 @@ public class MyKafkaUtils {
     private static long initOffset = 0L;
     private static int initPartition = 3;
 
+
     /**
      * 获取offset
      * @param topic
@@ -21,10 +22,11 @@ public class MyKafkaUtils {
      * @throws KeeperException
      * @throws InterruptedException
      */
-    public static Map<TopicPartition, Long> getOffset(String topic, List<Integer> partitions) throws KeeperException, InterruptedException {
+    public static Map<TopicPartition, Long> getOffsets(String groupid, String topic, Integer[] partitions) throws KeeperException, InterruptedException {
         Map<TopicPartition, Long> topicPartitionLongMap = new HashMap<>();
-        String zkTopicPath = parentPath + "/" + topic;
+        String zkTopicPath = parentPath + "/" + groupid + "/" +topic;
         if (!ZKUtils.isExist(zkTopicPath)){
+            ZKUtils.createNode(parentPath + "/" + groupid);
             ZKUtils.createNode(zkTopicPath);
             for (Integer integer : partitions) {
                 ZKUtils.createDataNode(zkTopicPath + "/" + integer, String.valueOf(initOffset));
@@ -44,19 +46,18 @@ public class MyKafkaUtils {
 
     /**
      * 多个topic
-     * @param topicPations
+     * @param topicPartitions
      * @return
      * @throws KeeperException
      * @throws InterruptedException
      */
-    public static Map<TopicPartition, Long> getOffset(Map<String, List<Integer>> topicPations) throws KeeperException, InterruptedException {
+    public static Map<TopicPartition, Long> getOffsets(String groupid, Map<String, Integer[]> topicPartitions) throws KeeperException, InterruptedException {
         List<Map<TopicPartition, Long>> tmpList = new ArrayList<>();
-        Set<String> topics = topicPations.keySet();
+        Set<String> topics = topicPartitions.keySet();
         for (String topic : topics) {
-            Map<TopicPartition, Long> offsets = getOffset(topic, topicPations.get(topic));
+            Map<TopicPartition, Long> offsets = getOffsets(groupid, topic, topicPartitions.get(topic));
             tmpList.add(offsets);
         }
-        //tmpList.forEach(map -> topicPartitionLongMap.putAll(map));
         Map<TopicPartition, Long> map = MapUtils.mergeMaps(tmpList);
         return map;
     }
@@ -72,14 +73,19 @@ public class MyKafkaUtils {
             throws KeeperException, InterruptedException {
         Set<TopicPartition> topicPartitions = offsets.keySet();
         for (TopicPartition topicPartition : topicPartitions) {
-            String partitionPath = parentPath + "/" + groupid + "/"
-                    + topicPartition.topic() + "/" + String.valueOf(topicPartition.partition());
-            ZKUtils.createOrUpdateDataNode(partitionPath, String.valueOf(offsets.get(topicPartition)));
+            updateOffset(groupid, topicPartition, offsets.get(topicPartition));
         }
     }
 
 
-
+    /**
+     * 更新zookeeper的offset
+     * @param groupid
+     * @param topicPartition
+     * @param offset
+     * @throws KeeperException
+     * @throws InterruptedException
+     */
     public static void updateOffset(String groupid, TopicPartition topicPartition, Long offset)
             throws KeeperException, InterruptedException {
         String partitionPath = parentPath + "/" + groupid + "/"

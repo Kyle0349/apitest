@@ -4,100 +4,111 @@ import com.kyle.spark230.utils.MyKafkaUtils;
 import com.kyle.spark230.utils.SparkUtils;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.serialization.StringDeserializer;
-import org.apache.spark.api.java.JavaRDD;
-import org.apache.spark.api.java.function.VoidFunction;
+import org.apache.spark.TaskContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.streaming.api.java.JavaInputDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
-import org.apache.spark.streaming.kafka010.ConsumerStrategies;
-import org.apache.spark.streaming.kafka010.KafkaUtils;
-import org.apache.spark.streaming.kafka010.LocationStrategies;
+import org.apache.spark.streaming.kafka010.*;
 import org.apache.zookeeper.KeeperException;
+import scala.Tuple2;
 
 import java.io.Serializable;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 
 public class SparkStreaming01 implements Serializable {
 
     private static  Broadcast<Map<String, Object>> kafkaParamsBroadcast = null;
 
 
-    public void readFromKafka() throws InterruptedException, KeeperException {
-
+    public void readFromKafka(Map<String, Object> kafkaParams, String topic, Integer[] partitions)
+            throws InterruptedException, KeeperException {
         JavaStreamingContext jssc = SparkUtils.getStreamingContext();
-
-        Map<String, Object> kafkaParams = new HashMap<String, Object>();
-        kafkaParams.put("bootstrap.servers", "centos1:9092");
-        kafkaParams.put("key.deserializer", StringDeserializer.class);
-        kafkaParams.put("value.deserializer", StringDeserializer.class);
-        kafkaParams.put("group.id", "com.kyle.test");
-        kafkaParams.put("auto.offset.reset", "latest");
-        kafkaParams.put("enable.auto.commit", false);
-        Collection<String> topics = Arrays.asList("topic02");
         kafkaParamsBroadcast = jssc.sparkContext().broadcast(kafkaParams);
-
-        Map<TopicPartition, Long> offsets = MyKafkaUtils.getOffset("topic02", Arrays.asList(0, 1, 2));
+        Collection<String> topics = Arrays.asList(topic);
+        Map<TopicPartition, Long> offsets = MyKafkaUtils.getOffsets(
+                kafkaParams.get("group.id").toString(), topic, partitions);
         JavaInputDStream<ConsumerRecord<String, String>> directStream = KafkaUtils.createDirectStream(
                 jssc,
                 LocationStrategies.PreferConsistent(),
-                ConsumerStrategies.<String, String>Subscribe(topics, kafkaParams, offsets)
+                ConsumerStrategies.Subscribe(topics, kafkaParams, offsets)
         );
 
 
-        directStream.foreachRDD(
-                new VoidFunction<JavaRDD<ConsumerRecord<String, String>>>() {
-                    @Override
-                    public void call(JavaRDD<ConsumerRecord<String, String>> consumerRecordJavaRDD) throws Exception {
+        //handle dataRdd
+        directStream.foreachRDD(consumerRecordJavaRDD -> {
+            if (!consumerRecordJavaRDD.isEmpty()){
+                consumerRecordJavaRDD.foreachPartition( consumerRecordIterator -> {
+                    while (consumerRecordIterator.hasNext()){
+                        String kafkaTopic;
+                        int partition;
+                        String key;
+                        String value;
+                        long offset;
+                        while (consumerRecordIterator.hasNext()){
+                            ConsumerRecord<String, String> record = consumerRecordIterator.next();
+                            kafkaTopic = record.topic();
+                            partition = record.partition();
+                            key = record.key();
+                            value = record.value();
+                            offset = record.offset();
+                            System.out.println(kafkaTopic + "-" + partition + "-" + offset + ": " + key + ": " + value);
 
-                        consumerRecordJavaRDD.foreachPartition(new VoidFunction<Iterator<ConsumerRecord<String, String>>>() {
-                            @Override
-                            public void call(Iterator<ConsumerRecord<String, String>> consumerRecordIterator) throws Exception {
-                                while (consumerRecordIterator.hasNext()){
-                                    ConsumerRecord<String, String> record = consumerRecordIterator.next();
-                                    String topic = record.topic();
-                                    int partition = record.partition();
-                                    String key = record.key();
-                                    String value = record.value();
-                                    long offset = record.offset();
-                                    System.out.println(topic + "-" + partition + "-" + offset + ": " + key + ": " + value);
-                                }
-                            }
-                        });
-
-
-
-                        //业务逻辑代码
-//                        consumerRecordJavaRDD.mapToPair(new PairFunction<ConsumerRecord<String,String>, String, String>() {
-//                            @Override
-//                            public Tuple2<String, String> call(ConsumerRecord<String, String> record) throws Exception {
-//                                return new Tuple2<>(record.key(), record.value());
-//                            }
-//                        }).foreach(new VoidFunction<Tuple2<String, String>>() {
-//                            @Override
-//                            public void call(Tuple2<String, String> stringStringTuple2) throws Exception {
-//                                System.out.println(stringStringTuple2._1 + ": " + stringStringTuple2._2);
-//                            }
-//                        });
-
-
-
-
-
-                        //更新offset到zookeeper
-//                        OffsetRange[] offsetRanges = ((HasOffsetRanges) consumerRecordJavaRDD.rdd()).offsetRanges();
-//                        OffsetRange offset = offsetRanges[TaskContext.get().partitionId()];
-//                        System.out.println(offset.topic() + ": " + offset.partition()
-//                                + ": " + offset.fromOffset() + ": " + offset.untilOffset());
-//                        TopicPartition topicPartition = new TopicPartition(offset.topic(), offset.partition());
-//                        MyKafkaUtils.updateOffset(
-//                                String.valueOf(kafkaParamsBroadcast.getValue().get("group.id")),
-//                                topicPartition, offset.untilOffset());
-
+                            //update zookeeper
+                            TopicPartition topicPartition = new TopicPartition(kafkaTopic, partition);
+                            MyKafkaUtils.updateOffset(
+                                    String.valueOf(kafkaParamsBroadcast.getValue().get("group.id")),
+                                    topicPartition,
+                                    offset + 1);
+                        }
                     }
-                }
-        );
+                });
+            }
+        });
         jssc.start();
         jssc.awaitTermination();
     }
+
+
+    /**
+     *
+     * @param kafkaParams
+     * @param topic
+     * @param partitions
+     * @throws KeeperException
+     * @throws InterruptedException
+     */
+    public static void readFromKafka1(Map<String, Object> kafkaParams, String topic, Integer[] partitions)
+            throws KeeperException, InterruptedException {
+        JavaStreamingContext jssc = SparkUtils.getStreamingContext();
+        kafkaParamsBroadcast = jssc.sparkContext().broadcast(kafkaParams);
+        List<String> topics = Arrays.asList(topic);
+        Map<TopicPartition, Long> offsets = MyKafkaUtils.getOffsets(
+                kafkaParams.get("groupid").toString(),topic, partitions);
+        JavaInputDStream<ConsumerRecord<String, String>> directStream = KafkaUtils.createDirectStream(jssc,
+                LocationStrategies.PreferBrokers(),
+                ConsumerStrategies.Subscribe(topics, kafkaParams, offsets));
+        directStream.foreachRDD( consumerRecordJavaRDD -> {
+            if (!consumerRecordJavaRDD.isEmpty()){
+                consumerRecordJavaRDD.mapToPair( record -> new Tuple2<>(record.key(), record.value()))
+                        .foreach( tuple2 -> System.out.println(tuple2._1 + ": " + tuple2._2));
+
+                //更新offset到zookeeper
+                OffsetRange[] offsetRanges = ((HasOffsetRanges) consumerRecordJavaRDD.rdd()).offsetRanges();
+                OffsetRange offset = offsetRanges[TaskContext.get().partitionId()];
+                System.out.println(offset.topic() + ": " + offset.partition()
+                        + ": " + offset.fromOffset() + ": " + offset.untilOffset());
+                TopicPartition topicPartition = new TopicPartition(offset.topic(), offset.partition());
+                MyKafkaUtils.updateOffset(
+                        String.valueOf(kafkaParamsBroadcast.getValue().get("group.id")),
+                        topicPartition, offset.untilOffset());
+            }
+        });
+
+    }
+
+
+
 }

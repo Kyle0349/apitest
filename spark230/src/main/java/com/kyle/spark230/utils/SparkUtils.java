@@ -19,7 +19,7 @@ public class SparkUtils {
 
     public static JavaStreamingContext getStreamingContext(){
         SparkConf conf = new SparkConf()
-                .setMaster("local[3]")
+                .setMaster("local[2]")
                 .setAppName("Stream230Test")
                 .set("spark.default.parallelism", "2");
         JavaSparkContext jsc = new JavaSparkContext(conf);

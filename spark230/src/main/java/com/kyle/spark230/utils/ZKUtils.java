@@ -46,9 +46,7 @@ public class ZKUtils implements Serializable {
      * @throws InterruptedException
      */
     public static void createNode(String zkPath) throws KeeperException, InterruptedException {
-        if (zkClient.exists(zkPath, false) == null){
-            zkClient.create(zkPath, null, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-        }
+        zkClient.create(zkPath, null, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
     }
 
 
