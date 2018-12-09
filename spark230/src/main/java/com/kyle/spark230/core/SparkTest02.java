@@ -4,12 +4,13 @@ import com.kyle.spark230.utils.SparkUtils;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.api.java.Optional;
 import org.apache.spark.api.java.function.*;
+import org.apache.spark.broadcast.Broadcast;
 import scala.Tuple2;
 
 import java.io.Serializable;
-import java.util.Arrays;
-import java.util.Iterator;
+import java.util.*;
 
 /**
  * 在一个PairRDD或（k,v）RDD上调用，返回一个（k,Iterable<v>）。主要作用是将相同的所有的键值对分组到一个集合序列当中，
@@ -36,7 +37,8 @@ public class SparkTest02 implements Serializable {
     private SparkTest01 sparkTest01 = new SparkTest01();
 
     public JavaPairRDD<String, Integer> getPairRdd(){
-        JavaRDD<String> linesRdd = sparkTest01.readFromArray();
+        JavaSparkContext jsc = SparkUtils.getJsc();
+        JavaRDD<String> linesRdd = sparkTest01.readFromArray(jsc);
         JavaPairRDD<String, Integer> wordsRdd = linesRdd.flatMap(
                 new FlatMapFunction<String, String>() {
                     public Iterator<String> call(String line) throws Exception {
@@ -77,17 +79,48 @@ public class SparkTest02 implements Serializable {
      */
     public void reduceByKey(){
         JavaPairRDD<String, Integer> pairRdd = this.getPairRdd();
+
         JavaPairRDD<String, Integer> resultRdd = pairRdd.reduceByKey(new Function2<Integer, Integer, Integer>() {
             public Integer call(Integer v1, Integer v2) throws Exception {
                 return v1 + v2;
             }
         });
 
+
+        //提升shuffle reduce 端并行度
+        pairRdd.reduceByKey( (v1, v2) -> {
+            return v1 + v2;
+        }, 1000);
+
         resultRdd.foreach(new VoidFunction<Tuple2<String, Integer>>() {
             public void call(Tuple2<String, Integer> result) throws Exception {
                 System.out.println(result._1 + ":" + result._2 );
             }
         });
+
+
+        //给key加盐
+        JavaPairRDD<String, Integer> stage1Rdd = pairRdd.mapToPair(pair -> {
+            Random random = new Random();
+            int prefix = random.nextInt(10);
+            return new Tuple2<>(prefix + "_" + pair._1, pair._2);
+        });
+
+        JavaPairRDD<String, Integer> stage2Rdd = stage1Rdd.reduceByKey((v1, v2) -> {
+            return v1 + v2;
+        });
+
+        //去除掉key的盐
+        JavaPairRDD<String, Integer> stage3Rdd = stage2Rdd.mapToPair(pair -> {
+            String key = pair._1.split("_")[1];
+            return new Tuple2<>(key, pair._2);
+        });
+
+        //全局shuffle
+        JavaPairRDD<String, Integer> result1Rdd = stage3Rdd.reduceByKey((v1, v2) -> {
+            return v1 + v2;
+        });
+
 
     }
 
@@ -119,5 +152,168 @@ public class SparkTest02 implements Serializable {
 
 
 
+    public void reduceJoin(){
+        JavaSparkContext jsc = SparkUtils.getJsc();
+        JavaRDD<String> userInfoRdd = sparkTest01.getUserInfoRdd(jsc);
+        JavaRDD<String> userVisitSession = sparkTest01.getUserVisitSession(jsc);
+        JavaPairRDD<String, String> userInfoPairRdd = userInfoRdd.mapToPair(line -> {
+            String[] split = line.split(" ");
+            return new Tuple2<>(split[0], line);
+        });
+
+        JavaPairRDD<String, String> userVisitPairRdd = userVisitSession.mapToPair(line -> {
+            String[] split = line.split(" ");
+            return new Tuple2<>(split[0], line);
+        });
+
+
+        JavaPairRDD<String, Tuple2<String, String>> join = userVisitPairRdd.join(userInfoPairRdd);
+
+        join.foreach( tuple -> {
+            System.out.println(tuple._1 + ": " + tuple._2._1 + ": " + tuple._2._2);
+        });
+
+
+    }
+
+
+    public void mapJoin(){
+        JavaSparkContext jsc = SparkUtils.getJsc();
+        JavaRDD<String> userInfoRdd = sparkTest01.getUserInfoRdd(jsc);
+        JavaRDD<String> userVisitSession = sparkTest01.getUserVisitSession(jsc);
+        JavaPairRDD<String, String> userInfoPairRdd = userInfoRdd.mapToPair(line -> {
+            String[] split = line.split(" ");
+            return new Tuple2<>(split[0], line);
+        });
+
+        JavaPairRDD<String, String> userVisitPairRdd = userVisitSession.mapToPair(line -> {
+            String[] split = line.split(" ");
+            return new Tuple2<>(split[0], line);
+        });
+
+        List<Tuple2<String, String>> collect = userInfoPairRdd.collect();
+        final Broadcast<List<Tuple2<String, String>>> broadcastUserInfo = jsc.broadcast(collect);
+
+        JavaPairRDD<String, Tuple2<String, String>> resultRdd = userVisitPairRdd.mapToPair(pair -> {
+            //得到用户信息的map
+            List<Tuple2<String, String>> userInfos = broadcastUserInfo.value();
+            Map<String, String> userInfoMap = new HashMap<>();
+            for (Tuple2<String, String> userInfo : userInfos) {
+                userInfoMap.put(userInfo._1, userInfo._2);
+            }
+            //获取当前用户对应的信息
+            String userInfo = userInfoMap.get(pair._1);
+            String userVisitSess = pair._2;
+            return new Tuple2<>(pair._1, new Tuple2<>(userVisitSess, userInfo));
+        }).filter( tuple2 -> tuple2._2._2 !=null);
+
+
+        resultRdd.foreach( tuple2 -> {
+            System.out.println(tuple2._1 + ": " + tuple2._2._1 + ": " + tuple2._2._2);
+        });
+
+    }
+
+
+    /**
+     * sample 采样倾斜key单独进行join
+     */
+    public void sample(){
+        JavaSparkContext jsc = SparkUtils.getJsc();
+        JavaRDD<String> userInfoRdd = sparkTest01.getUserInfoRdd(jsc);
+        JavaRDD<String> userVisitSession = sparkTest01.getUserVisitSession(jsc);
+        JavaPairRDD<String, String> userInfoPairRdd = userInfoRdd.mapToPair(line -> {
+            String[] split = line.split(" ");
+            return new Tuple2<>(split[0], line);
+        });
+
+        JavaPairRDD<String, String> userVisitPairRdd = userVisitSession.mapToPair(line -> {
+            String[] split = line.split(" ");
+            return new Tuple2<>(split[0], line);
+        });
+
+
+        //userVisitPairRdd.foreach( tuple2 -> System.out.println(tuple2._1 + "=" + tuple2._2));
+
+        //采样获取对应数据量最大的key
+        JavaPairRDD<String, String> sampleRdd = userVisitPairRdd.sample(false, 0.1, 99);
+
+        //sampleRdd.foreach( tuple2 -> System.out.println(tuple2._1 + "-" + tuple2._2));
+
+        JavaPairRDD<String, Long> mapSampleRdd = sampleRdd.mapToPair(tuple2 -> new Tuple2<>(tuple2._1, 1L));
+        JavaPairRDD<String, Long> reduceRdd = mapSampleRdd.reduceByKey((v1, v2) -> v1 + v2);
+        JavaPairRDD<Long, String> reverseSampleRdd = reduceRdd.mapToPair(pair -> new Tuple2<>(pair._2, pair._1));
+        JavaPairRDD<Long, String> longStringJavaPairRDD = reverseSampleRdd.sortByKey();
+        longStringJavaPairRDD.foreach( longStringTuple2 -> System.out.println(longStringTuple2._1 + ": " + longStringTuple2._2));
+        final String key = reverseSampleRdd.sortByKey(false).take(1).get(0)._2;
+
+        JavaPairRDD<String, Tuple2<String, String>> skwedJoinRdd =
+                userVisitPairRdd.filter(tuple2 -> tuple2._1.equals(key)).join(userInfoPairRdd);
+
+        //获取到正常keyRdd
+        JavaPairRDD<String, String> commonRdd = userVisitPairRdd.filter(tuple2 -> !tuple2._1.equals(key));
+        JavaPairRDD<String, Tuple2<String, String>> joinRdd2 = commonRdd.join(userInfoPairRdd);
+        //System.out.println("2num: " + joinRdd2.getNumPartitions());
+
+        //合并jion结果表
+        JavaPairRDD<String, Tuple2<String, String>> unionRdd = skwedJoinRdd.union(joinRdd2);
+        unionRdd.foreach( tuple2 -> System.out.println(tuple2._1 + ": " + tuple2._2._1 + ": " + tuple2._2._2));
+
+    }
+
+
+//    public void sample2(){
+//        JavaSparkContext jsc = SparkUtils.getJsc();
+//        JavaRDD<String> userInfoRdd = sparkTest01.getUserInfoRdd(jsc);
+//        JavaRDD<String> userVisitSession = sparkTest01.getUserVisitSession(jsc);
+//        JavaPairRDD<String, String> userInfoPairRdd = userInfoRdd.mapToPair(line -> {
+//            String[] split = line.split(" ");
+//            return new Tuple2<>(split[0], line);
+//        });
+//
+//        JavaPairRDD<String, String> userVisitPairRdd = userVisitSession.mapToPair(line -> {
+//            String[] split = line.split(" ");
+//            return new Tuple2<>(split[0], line);
+//        });
+//
+//
+//        //userVisitPairRdd.foreach( tuple2 -> System.out.println(tuple2._1 + "=" + tuple2._2));
+//
+//        //采样获取对应数据量最大的key
+//        JavaPairRDD<String, String> sampleRdd = userVisitPairRdd.sample(false, 0.1, 99);
+//
+//        //sampleRdd.foreach( tuple2 -> System.out.println(tuple2._1 + "-" + tuple2._2));
+//
+//        JavaPairRDD<String, Long> mapSampleRdd = sampleRdd.mapToPair(tuple2 -> new Tuple2<>(tuple2._1, 1L));
+//        JavaPairRDD<String, Long> reduceRdd = mapSampleRdd.reduceByKey((v1, v2) -> v1 + v2);
+//        JavaPairRDD<Long, String> reverseSampleRdd = reduceRdd.mapToPair(pair -> new Tuple2<>(pair._2, pair._1));
+//        JavaPairRDD<Long, String> longStringJavaPairRDD = reverseSampleRdd.sortByKey();
+//        longStringJavaPairRDD.foreach( longStringTuple2 -> System.out.println(longStringTuple2._1 + ": " + longStringTuple2._2));
+//        final String key = reverseSampleRdd.sortByKey(false).take(1).get(0)._2;
+//
+//        JavaPairRDD<String, String> stringStringJavaPairRDD = userInfoPairRdd.filter(tuple2 -> tuple2._1.equals(key)).flatMapToPair(tuple2 -> {
+//            Random random = new Random();
+//            List<Tuple2<String, String>> list = new ArrayList<Tuple2<String, String>>();
+//            for (int i = 0; i < 10; i++) {
+//                int prefix = random.nextInt(5);
+//                list.add(new Tuple2<String, String>(prefix + "_" + tuple2._1, tuple2._2));
+//            }
+//            return list.iterator();
+//        });
+//
+//        JavaPairRDD<String, Tuple2<String, String>> resultRdd = userVisitPairRdd.filter(tuple2 -> tuple2._1.equals(key)).
+//                mapToPair(tuple2 -> {
+//                    Random random = new Random();
+//                    int prefix = random.nextInt(5);
+//                    return new Tuple2<>(prefix + "_" + tuple2._1, tuple2._2);
+//                }).join(stringStringJavaPairRDD).mapToPair(tuple2 -> {
+//            String tmpkey = tuple2._1.split("_")[1];
+//            return new Tuple2<>(tmpkey, tuple2._2);
+//        });
+//
+//        resultRdd.foreach( tuple2 -> System.out.println(tuple2._1 + ": " + tuple2._2._1 + ": " + tuple2._2._2));
+//
+//
+//    }
 
 }

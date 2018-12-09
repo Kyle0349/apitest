@@ -12,7 +12,9 @@ public class SparkUtils {
     public static JavaSparkContext getJsc(){
         SparkConf conf = new SparkConf()
                 .setAppName("spatk230Test")
-                .setMaster("local");
+                .setMaster("local[3]")
+                .set("spark.default.parallelism", "5")
+                .set("spark.reducer.maxSizeInFlight", "24");
         JavaSparkContext jsc = new JavaSparkContext(conf);
         return jsc;
     }
