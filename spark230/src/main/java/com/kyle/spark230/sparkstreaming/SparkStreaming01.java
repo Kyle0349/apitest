@@ -4,7 +4,9 @@ import com.kyle.spark230.utils.MyKafkaUtils;
 import com.kyle.spark230.utils.SparkUtils;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.spark.SparkConf;
 import org.apache.spark.TaskContext;
+import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.streaming.api.java.JavaInputDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
@@ -36,37 +38,72 @@ public class SparkStreaming01 implements Serializable {
                 ConsumerStrategies.Subscribe(topics, kafkaParams, offsets)
         );
 
-
         //handle dataRdd
-        directStream.foreachRDD(consumerRecordJavaRDD -> {
-            if (!consumerRecordJavaRDD.isEmpty()){
-                consumerRecordJavaRDD.foreachPartition( consumerRecordIterator -> {
-                    while (consumerRecordIterator.hasNext()){
-                        String kafkaTopic;
-                        int partition;
-                        String key;
-                        String value;
-                        long offset;
-                        while (consumerRecordIterator.hasNext()){
-                            ConsumerRecord<String, String> record = consumerRecordIterator.next();
-                            kafkaTopic = record.topic();
-                            partition = record.partition();
-                            key = record.key();
-                            value = record.value();
-                            offset = record.offset();
-                            System.out.println(kafkaTopic + "-" + partition + "-" + offset + ": " + key + ": " + value);
+        directStreamHandler(directStream);
+        jssc.start();
+        jssc.awaitTermination();
+    }
 
-                            //update zookeeper
-                            TopicPartition topicPartition = new TopicPartition(kafkaTopic, partition);
-                            MyKafkaUtils.updateOffset(
-                                    String.valueOf(kafkaParamsBroadcast.getValue().get("group.id")),
-                                    topicPartition,
-                                    offset + 1);
-                        }
-                    }
-                });
-            }
-        });
+
+    /**
+     * 使用限流的方式从kafka读取数据
+     *
+     * 一个batch的每个分区每秒接收到的消息量=batchDuration*有效速率
+     * 有效速率=取设置的maxRatePerPartition和预估的速率最小值
+     * spark.streaming.kafka.maxRatePerPartition
+     * @param kafkaParams
+     * @param topic
+     * @param partitions
+     * @throws KeeperException
+     * @throws InterruptedException
+     */
+    public void  readFromKafkaWithSpeedControl(Map<String, Object> kafkaParams,
+                                               String topic, Integer[] partitions)
+            throws KeeperException, InterruptedException {
+        SparkConf conf = SparkUtils.getSparkcONF();
+        JavaStreamingContext jssc = SparkUtils.getStreamingContext(conf);
+        kafkaParamsBroadcast = jssc.sparkContext().broadcast(kafkaParams);
+        Collection<String> topics = Arrays.asList(topic);
+        Map<TopicPartition, Long> offsets = MyKafkaUtils.getOffsets(
+                kafkaParams.get("group.id").toString(), topic, partitions);
+
+
+        DefaultPerPartitionConfig defaultPerPartitionConfig = new DefaultPerPartitionConfig(conf);
+
+        JavaInputDStream<ConsumerRecord<String, String>> directStream = KafkaUtils.createDirectStream(
+                jssc,
+                LocationStrategies.PreferConsistent(),
+                ConsumerStrategies.Subscribe(topics, kafkaParams, offsets),
+                defaultPerPartitionConfig
+        );
+
+        directStreamHandler(directStream);
+
+        jssc.start();
+        jssc.awaitTermination();
+    }
+
+
+    /**
+     * 重分区处理kafka回来的数据
+     */
+    public void readFromKafkaWithRepartition(Map<String, Object> kafkaParams, String topic, Integer[] partitions)
+            throws KeeperException, InterruptedException {
+        SparkConf conf = SparkUtils.getSparkcONF();
+        JavaStreamingContext jssc = SparkUtils.getStreamingContext(conf);
+        kafkaParamsBroadcast = jssc.sparkContext().broadcast(kafkaParams);
+        Collection<String> topics = Arrays.asList(topic);
+        Map<TopicPartition, Long> offsets = MyKafkaUtils.getOffsets(
+                kafkaParams.get("group.id").toString(), topic, partitions);
+
+        DefaultPerPartitionConfig defaultPerPartitionConfig = new DefaultPerPartitionConfig(conf);
+        JavaInputDStream<ConsumerRecord<String, String>> directStream = KafkaUtils.createDirectStream(
+                jssc,
+                LocationStrategies.PreferConsistent(),
+                ConsumerStrategies.Subscribe(topics, kafkaParams, offsets),
+                defaultPerPartitionConfig
+        );
+        directStreamHandlerRePartition(directStream, 5);
         jssc.start();
         jssc.awaitTermination();
     }
@@ -80,7 +117,7 @@ public class SparkStreaming01 implements Serializable {
      * @throws KeeperException
      * @throws InterruptedException
      */
-    public static void readFromKafka1(Map<String, Object> kafkaParams, String topic, Integer[] partitions)
+    public void readFromKafka1(Map<String, Object> kafkaParams, String topic, Integer[] partitions)
             throws KeeperException, InterruptedException {
         JavaStreamingContext jssc = SparkUtils.getStreamingContext();
         kafkaParamsBroadcast = jssc.sparkContext().broadcast(kafkaParams);
@@ -107,6 +144,83 @@ public class SparkStreaming01 implements Serializable {
             }
         });
 
+        jssc.start();
+        jssc.awaitTermination();
+
+    }
+
+
+    /**
+     * 通过重新分区增加分区处理kafka返回来的dstream
+     * @param directStream
+     * @param numPartitions
+     */
+    private void directStreamHandlerRePartition(
+            JavaInputDStream<ConsumerRecord<String, String>> directStream,
+            int numPartitions){
+        directStream.foreachRDD( rdd -> {
+
+            if (!rdd.isEmpty()){
+                JavaRDD<ConsumerRecord<String, String>> repartitionRdd = rdd.repartition(numPartitions);
+                repartitionRdd.foreachPartition( tuples -> {
+                    String kafkaTopic;
+                    int partition;
+                    String key;
+                    String value;
+                    long offset1;
+                    while (tuples.hasNext()){
+                        ConsumerRecord<String, String> record = tuples.next();
+                        kafkaTopic = record.topic();
+                        partition = record.partition();
+                        key = record.key();
+                        value = record.value();
+                        offset1 = record.offset();
+                        System.out.println(kafkaTopic + "-" + partition + "-" + offset1 + ": " + key + ": " + value);
+
+                    }
+                    System.out.println("*****************");
+                });
+                System.out.println("===============");
+            }
+        });
+    }
+
+
+    /**
+     * 正常处理返回的dsStream
+     * @param directStream
+     */
+    private void directStreamHandler(JavaInputDStream<ConsumerRecord<String, String>> directStream){
+        //handle dataRdd
+        directStream.foreachRDD(consumerRecordJavaRDD -> {
+            if (!consumerRecordJavaRDD.isEmpty()){
+                consumerRecordJavaRDD.foreachPartition( consumerRecordIterator -> {
+                    String kafkaTopic;
+                    int partition;
+                    String key;
+                    String value;
+                    long offset1;
+                    while (consumerRecordIterator.hasNext()){
+                        ConsumerRecord<String, String> record = consumerRecordIterator.next();
+                        kafkaTopic = record.topic();
+                        partition = record.partition();
+                        key = record.key();
+                        value = record.value();
+                        offset1 = record.offset();
+                        System.out.println(kafkaTopic + "-" + partition + "-" + offset1 + ": " + key + ": " + value);
+
+                        //update zookeeper
+                        TopicPartition topicPartition = new TopicPartition(kafkaTopic, partition);
+                        MyKafkaUtils.updateOffset(
+                                String.valueOf(kafkaParamsBroadcast.getValue().get("group.id")),
+                                topicPartition,
+                                offset1 + 1);
+                    }
+                    System.out.println("*************");
+                });
+                System.out.println("==========");
+            }
+        });
     }
 
 
