@@ -118,6 +118,12 @@ public class SparkTest02 implements Serializable {
     }
 
 
+    public void readFromCSV(){
+        JavaRDD<String> javaRDD = sc.textFile("/Users/kyle/Downloads/user/raw_user.csv");
+        System.out.println(javaRDD.getNumPartitions());
+    }
+
+
 
     public void readFromHdfs(){
 
