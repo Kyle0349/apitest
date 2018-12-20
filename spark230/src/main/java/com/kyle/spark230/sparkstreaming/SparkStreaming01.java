@@ -44,7 +44,6 @@ public class SparkStreaming01 implements Serializable {
         jssc.awaitTermination();
     }
 
-
     /**
      * 使用限流的方式从kafka读取数据
      *
@@ -108,7 +107,6 @@ public class SparkStreaming01 implements Serializable {
         jssc.awaitTermination();
     }
 
-
     /**
      *
      * @param kafkaParams
@@ -116,6 +114,7 @@ public class SparkStreaming01 implements Serializable {
      * @param partitions
      * @throws KeeperException
      * @throws InterruptedException
+     *
      */
     public void readFromKafka1(Map<String, Object> kafkaParams, String topic, Integer[] partitions)
             throws KeeperException, InterruptedException {

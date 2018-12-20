@@ -4,6 +4,8 @@ import com.kyle.spark230.utils.SparkUtils;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.api.java.function.Function2;
+import org.apache.spark.api.java.function.VoidFunction;
 import org.apache.spark.broadcast.Broadcast;
 import scala.Tuple2;
 
@@ -133,7 +135,52 @@ public class SparkTest02 implements Serializable {
      * 使用初始值（seqOp中使用，而combOpenCL中未使用）对应返回值为pairRDD，而区于aggregate（返回值为非RDD)
      */
     public void aggregateByKey(){
-        JavaPairRDD<String, Integer> pairRdd = this.getPairRdd();
+        JavaSparkContext jsc = SparkUtils.getJsc();
+        List<Tuple2<String, Integer>> abk = Arrays.asList(
+                new Tuple2<>("class1", 1),
+                new Tuple2<>("class1", 2),
+                new Tuple2<>("class1", 4),
+                new Tuple2<>("class2", 3),
+                new Tuple2<>("class2", 1),
+                new Tuple2<>("class2", 5));
+        JavaPairRDD<String, Integer> abkrdd = jsc.parallelizePairs(abk, 3);
+
+        abkrdd.mapPartitionsWithIndex(
+                new Function2<Integer, Iterator<Tuple2<String, Integer>>, Iterator<String>>() {
+                    @Override
+                    public Iterator<String> call(Integer s, Iterator<Tuple2<String, Integer>> v)
+                            throws Exception {
+                        List<String> li = new ArrayList<>();
+                        while (v.hasNext()) {
+                            li.add("data：" + v.next() + " in " + (s + 1) + " " + " partition");
+                        }
+                        return li.iterator();
+                    }
+                }, true).foreach(m -> System.out.println(m));
+
+        JavaPairRDD<String, Integer> abkrdd2 = abkrdd.aggregateByKey(0,
+                new Function2<Integer, Integer, Integer>() {
+                    @Override
+                    public Integer call(Integer s, Integer v) throws Exception {
+                        //System.out.println("seq:" + s + "," + v);
+                        return Math.max(s, v);
+                    }
+                }, new Function2<Integer, Integer, Integer>() {
+                    @Override
+                    public Integer call(Integer s, Integer v) throws Exception {
+                        //System.out.println("com:" + s + "," + v);
+                        return Math.max(s, v);
+                    }
+                });
+
+        abkrdd2.foreach(new VoidFunction<Tuple2<String, Integer>>() {
+            @Override
+            public void call(Tuple2<String, Integer> s) throws Exception {
+                System.out.println("c:" + s._1 + ",v:" + s._2);
+            }
+        });
+
+
 
 
     }
@@ -230,7 +277,7 @@ public class SparkTest02 implements Serializable {
     /**
      * sample 采样倾斜key单独进行join
      */
-    public void sample(){
+    public void sampleToJoin(){
         JavaSparkContext jsc = SparkUtils.getJsc();
         JavaRDD<String> userInfoRdd = sparkTest01.getUserInfoRdd(jsc);
         JavaRDD<String> userVisitSession = sparkTest01.getUserVisitSession(jsc);
@@ -244,24 +291,32 @@ public class SparkTest02 implements Serializable {
             return new Tuple2<>(split[0], line);
         });
 
-
-        //userVisitPairRdd.foreach( tuple2 -> System.out.println(tuple2._1 + "=" + tuple2._2));
+        System.out.println(userInfoRdd.getNumPartitions());
+        System.out.println(userVisitSession.getNumPartitions());
 
         //采样获取对应数据量最大的key
-        JavaPairRDD<String, String> sampleRdd = userVisitPairRdd.sample(false, 0.1, 99);
+        long l = System.currentTimeMillis();
+        JavaPairRDD<String, String> sampleRdd = userVisitPairRdd.sample(false,
+                0.1, System.currentTimeMillis());
 
-        //sampleRdd.foreach( tuple2 -> System.out.println(tuple2._1 + "-" + tuple2._2));
+        final String key = sampleRdd.mapValues(tmp -> 1)
+                .reduceByKey((v1, v2) -> v1 + v2)
+                .mapToPair(pair -> new Tuple2<>(pair._2, pair._1))
+                .sortByKey(false).take(1).get(0)._2;
 
-        JavaPairRDD<String, Long> mapSampleRdd = sampleRdd.mapToPair(tuple2 -> new Tuple2<>(tuple2._1, 1L));
-        JavaPairRDD<String, Long> reduceRdd = mapSampleRdd.reduceByKey((v1, v2) -> v1 + v2);
-        JavaPairRDD<Long, String> reverseSampleRdd = reduceRdd.mapToPair(pair -> new Tuple2<>(pair._2, pair._1));
-        JavaPairRDD<Long, String> longStringJavaPairRDD = reverseSampleRdd.sortByKey();
-        longStringJavaPairRDD.foreach( longStringTuple2 -> System.out.println(longStringTuple2._1 + ": " + longStringTuple2._2));
-        final String key = reverseSampleRdd.sortByKey(false).take(1).get(0)._2;
+        System.out.println(key);
+
+        System.out.println(userInfoPairRdd.getNumPartitions());
+        System.out.println(userVisitPairRdd.getNumPartitions());
 
         JavaPairRDD<String, Tuple2<String, String>> skwedJoinRdd =
                 userVisitPairRdd.filter(tuple2 -> tuple2._1.equals(key)).join(userInfoPairRdd);
 
+        int numPartitions = skwedJoinRdd.getNumPartitions();
+        System.out.println("num: " + numPartitions);
+
+
+        /*
         //获取到正常keyRdd
         JavaPairRDD<String, String> commonRdd = userVisitPairRdd.filter(tuple2 -> !tuple2._1.equals(key));
         JavaPairRDD<String, Tuple2<String, String>> joinRdd2 = commonRdd.join(userInfoPairRdd);
@@ -270,6 +325,8 @@ public class SparkTest02 implements Serializable {
         //合并jion结果表
         JavaPairRDD<String, Tuple2<String, String>> unionRdd = skwedJoinRdd.union(joinRdd2);
         unionRdd.foreach( tuple2 -> System.out.println(tuple2._1 + ": " + tuple2._2._1 + ": " + tuple2._2._2));
+
+        */
 
     }
 

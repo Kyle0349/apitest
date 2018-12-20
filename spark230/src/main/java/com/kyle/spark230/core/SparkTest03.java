@@ -25,9 +25,11 @@ public class SparkTest03 {
 
         JavaSparkContext jsc = SparkUtils.getJsc();
 
-        JavaRDD<String> javaRDD = jsc.textFile("/Users/kyle/Downloads/user/raw_user.csv");
+        JavaRDD<String> javaRDD = jsc.textFile("/Users/kyle/Downloads/user/raw_user.csv", 20);
 
-        System.out.println(javaRDD.getNumPartitions());
+        JavaRDD<String> coalesce = javaRDD.coalesce(2);
+
+        System.out.println(coalesce.getNumPartitions());
 
     }
 

@@ -27,13 +27,22 @@ public class SparkUtils {
     }
 
 
+    public static JavaSparkContext getJscRunOnYarn(){
+        SparkConf conf = new SparkConf()
+                .setAppName("spark_apt_test");
+        JavaSparkContext jsc = new JavaSparkContext(conf);
+        return jsc;
+    }
+
+
     public static JavaSparkContext getJsc(){
         SparkConf conf = new SparkConf()
                 .setAppName("spatk230Test")
-                .set("spark.default.parallelism", "2")
+                .set("spark.locality.wait","10")
+                //.set("spark.default.parallelism", "5")
                 //.set("spark.reducer.maxSizeInFlight", "24")
                 .set("spark.executor.memory", "512m")
-                .setMaster("local[2]");
+                .setMaster("local[*]");
         JavaSparkContext jsc = new JavaSparkContext(conf);
         jsc.setLogLevel("WARN");
         return jsc;
@@ -54,7 +63,6 @@ public class SparkUtils {
         return jssc;
 
     }
-
 
     public static SparkSession getSparkSession(){
         SparkSession session = SparkSession.builder()
