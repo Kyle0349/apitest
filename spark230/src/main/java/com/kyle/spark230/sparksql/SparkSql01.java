@@ -46,13 +46,9 @@ public class SparkSql01 {
 
         item_id_count_ds.show(10);
 
-
         item_id_count_ds.agg(sum("item_id_count")).show();
 
-
-
         Thread.sleep(1000*3000);
-
 
     }
 

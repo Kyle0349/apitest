@@ -7,10 +7,9 @@ public class SyncTableFromMysql {
     public static void main(String[] args) {
 
         GetMetaInfoFromRMDB getMetaInfoFromRMDB = new GetMetaInfoFromRMDB();
-        String metaInfoFromMysql = getMetaInfoFromRMDB.getMetaInfoFromMysql("product");
+        String metaInfoFromMysql = getMetaInfoFromRMDB.getMetaInfoFromMysql("test","product");
         System.out.println(metaInfoFromMysql);
 
     }
-
 
 }
