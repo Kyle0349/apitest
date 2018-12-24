@@ -1,0 +1,73 @@
+<workflow-app name="data-sync-02-w" xmlns="uri:oozie:workflow:0.5">
+    <start to="decision-ba46"/>
+    <kill name="Kill">
+        <message>Action failed, error message[${wf:errorMessage(wf:lastErrorNode())}]</message>
+    </kill>
+    <action name="shell-ac3c">
+        <shell xmlns="uri:oozie:shell-action:0.1">
+            <job-tracker>${jobTracker}</job-tracker>
+            <name-node>${nameNode}</name-node>
+            <configuration>
+                <property>
+                    <name>oozie.launcher.mapred.job.queue.name</name>
+                    <value>kyle</value>
+                </property>
+            </configuration>
+            <exec>/tmp/scripts/sync_sqoop.sh</exec>
+            <file>/tmp/scripts/sync_sqoop.sh#sync_sqoop.sh</file>
+            <capture-output/>
+        </shell>
+        <ok to="End"/>
+        <error to="Kill"/>
+    </action>
+    <action name="spark-c6d9">
+        <spark xmlns="uri:oozie:spark-action:0.2">
+            <job-tracker>${jobTracker}</job-tracker>
+            <name-node>${nameNode}</name-node>
+            <configuration>
+                <property>
+                    <name>oozie.action.sharelib.for.spark</name>
+                    <value>spark2</value>
+                </property>
+                <property>
+                    <name>oozie.launcher.mapred.job.queue.name</name>
+                    <value>kyle</value>
+                </property>
+            </configuration>
+            <master>yarn</master>
+            <mode>client</mode>
+            <name>MySpark</name>
+            <class>com.kyle.spark230.main.SyncTableFromMysql</class>
+            <jar>spark_api_test.jar</jar>
+            <spark-opts>--driver-memory 512M --executor-memory 700M --executor-cores 1 --num-executors 1 --queue kyle --driver-class-path /usr/local/share/java/mysql-connector-java-5.1.38.jar --packages mysql:mysql-connector-java:5.1.38</spark-opts>
+            <file>/tmp/spark/jar/spark_api_test.jar#spark_api_test.jar</file>
+        </spark>
+        <ok to="shell-ac3c"/>
+        <error to="shell-53b7"/>
+    </action>
+    <decision name="decision-ba46">
+        <switch>
+            <case to="shell-ac3c">
+                ${fs:exists("/user/hive/warehouse/test.db/sqoop_test_product")}
+            </case>
+            <default to="spark-c6d9"/>
+        </switch>
+    </decision>
+    <action name="shell-53b7">
+        <shell xmlns="uri:oozie:shell-action:0.1">
+            <job-tracker>${jobTracker}</job-tracker>
+            <name-node>${nameNode}</name-node>
+            <exec>/tmp/scripts/spark_error_handler.sh</exec>
+            <file>/tmp/scripts/spark_error_handler.sh#spark_error_handler.sh</file>
+            <capture-output/>
+        </shell>
+        <ok to="End"/>
+        <error to="Kill"/>
+    </action>
+    <fork name="fork-2b44">
+        <path start="End" />
+        <path start="shell-53b7" />
+    </fork>
+    <join name="join-97b3" to="End"/>
+    <end name="End"/>
+</workflow-app>

@@ -75,4 +75,14 @@ public class SparkUtils {
     }
 
 
+    public static SparkSession getHiveSparkSession(){
+        SparkSession session = SparkSession.builder()
+                .appName("spark_hive_opera")
+                .config("warehouselocation", "/user/hive/warehouse")
+                .enableHiveSupport()
+                .getOrCreate();
+        return session;
+    }
+
+
 }

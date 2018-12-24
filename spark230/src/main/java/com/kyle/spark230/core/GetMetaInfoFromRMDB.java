@@ -1,6 +1,5 @@
 package com.kyle.spark230.core;
 
-import com.kyle.spark230.utils.SparkUtils;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
@@ -12,11 +11,11 @@ public class GetMetaInfoFromRMDB {
 
     public String getMetaInfoFromMysql(String db, String table){
 
-        //SparkSession session = SparkSession.builder().appName("SyncTableFromMysql").getOrCreate();
-        SparkSession session = SparkUtils.getSparkSession();
+        SparkSession session = SparkSession.builder().appName("SyncTableFromMysql").getOrCreate();
+        //SparkSession session = SparkUtils.getSparkSession();
         Properties prop = new Properties();
 
-        String sql = "(select CONCAT('create table ', t4.TABLE_NAME, '(', t4.column_info, ')', ' comment ', '\"', t4.TABLE_COMMENT, '\"', ';') as create_stmt\n" +
+        String sql = "(select CONCAT('create table ', concat('sqoop_test_',t4.TABLE_NAME), '(', t4.column_info, ')', ' comment ', '\"', t4.TABLE_COMMENT, '\"') as create_stmt\n" +
                 "from \n" +
                 "(select \n" +
                 "t3.TABLE_NAME, t3.TABLE_COMMENT, group_concat(CONCAT(t3.COLUMN_NAME, ' ', t3.DATA_TYPE, ' comment ', '\"', t3.COLUMN_COMMENT, '\"')) AS column_info \n" +
@@ -35,7 +34,7 @@ public class GetMetaInfoFromRMDB {
         prop.setProperty("user", "root");
         prop.setProperty("password", "root");
         prop.setProperty("user", "root");
-        //prop.setProperty("dirver", "com.mysql.jdbc.Driver");
+        prop.setProperty("driver", "com.mysql.jdbc.Driver");
         Dataset<Row> metaDs = session.read().jdbc(url, sql, prop);
         List<Row> collect = metaDs.javaRDD().collect();
         String rtn = null;
@@ -44,6 +43,7 @@ public class GetMetaInfoFromRMDB {
                 rtn = row.getString(0);
             }
         }
+        session.close();
         return rtn;
     }
 

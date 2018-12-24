@@ -4,10 +4,11 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import static org.apache.spark.sql.functions.*;
-import scala.Function1;
 
 import java.util.Properties;
+
+import static org.apache.spark.sql.functions.count;
+import static org.apache.spark.sql.functions.sum;
 
 public class SparkSql01 {
 
