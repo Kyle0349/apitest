@@ -15,7 +15,7 @@ public class HbaseUtils {
     private static Configuration conf = null;
     static {
         conf = HBaseConfiguration.create();
-        conf.set("hbase.zookeeper.quorum", "centos1:2181");
+        conf.set("hbase.zookeeper.quorum", "cdh01:2181");
     }
 
 
