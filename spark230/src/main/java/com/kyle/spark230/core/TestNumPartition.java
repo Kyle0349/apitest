@@ -15,7 +15,7 @@ import org.apache.spark.api.java.JavaSparkContext;
  *
  *
  */
-public class SparkTest03 {
+public class TestNumPartition {
 
     /**
      * 从本地读取csv，

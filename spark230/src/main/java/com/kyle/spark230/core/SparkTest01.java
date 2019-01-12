@@ -5,6 +5,7 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.VoidFunction;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 
@@ -23,12 +24,17 @@ public class SparkTest01 implements Serializable {
     public JavaRDD<String> readFromArray(JavaSparkContext jsc){
 
         JavaRDD<String> linesRdd = jsc.parallelize(Arrays.asList("hi hadoop", "hello spark", "hello hadoop"));
+
+        ArrayList<Object> objects = new ArrayList<>();
+        objects.add("");
+
         return linesRdd;
+
     }
 
 
     /**
-     * 充分区
+     * 重分区
      * @param jsc
      */
     public void repartition(JavaSparkContext jsc){

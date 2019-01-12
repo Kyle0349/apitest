@@ -20,6 +20,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+
+/**
+ * kafka
+ */
 public class SparkStreaming01 implements Serializable {
 
     private static  Broadcast<Map<String, Object>> kafkaParamsBroadcast = null;
