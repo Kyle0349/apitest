@@ -14,6 +14,7 @@
         <module>hbase1</module>
         <module>spark230</module>
         <module>kettle</module>
+        <module>javabase</module>
     </modules>
 
     <properties>
