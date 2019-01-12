@@ -6,7 +6,6 @@ public class HiveTest01 {
 
         System.out.println("123");
 
-
     }
 
 
