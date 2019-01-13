@@ -1,6 +1,8 @@
 package com.kyle.hbase;
 
 import com.kyle.utils.HbaseUtils;
+import com.kyle.utils.MyRadomUtils;
+import org.apache.commons.lang.math.RandomUtils;
 import org.apache.hadoop.hbase.*;
 import org.apache.hadoop.hbase.client.*;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -8,6 +10,8 @@ import org.apache.hadoop.hbase.util.MD5Hash;
 
 import java.io.IOException;
 import java.util.*;
+
+import static jdk.nashorn.internal.objects.NativeString.substring;
 
 public class Hash_example {
 
@@ -81,15 +85,17 @@ public class Hash_example {
         Random random = new Random();
 
         // 模拟put 10000条数据
-        for (int i = 10000; i < 100000; i++) {
-            currentTime += random.nextInt(1000); byte[] lowT =
-                    Bytes.copy(Bytes.toBytes(currentTime), 4, 4); byte[] lowI =
-                    Bytes.copy(Bytes.toBytes((long) i), 4, 4); byte[] rowkey =
-                    Bytes.add(MD5Hash .getMD5AsHex(Bytes.add(lowI, lowT)).substring(0, 8)
-                            .getBytes(), Bytes.toBytes(i));
-            Put put = new Put(rowkey);
+        String telephone;
+        for (int i = 1; i < 100; i++) {
+            telephone = MyRadomUtils.getTelephone();
+            String rowkey = MD5Hash .getMD5AsHex(telephone.getBytes()).substring(0,5) + "-"
+                    + telephone + "-"
+                    + String.valueOf(Long.MAX_VALUE - System.currentTimeMillis() + i);
+            Put put = new Put(Bytes.toBytes(rowkey));
             put.addColumn(Bytes.toBytes("cf1"), Bytes.toBytes("name"),
-                    Bytes.toBytes("make"));
+                    Bytes.toBytes(UUID.randomUUID().toString().replaceAll("-","")));
+            put.addColumn(Bytes.toBytes("cf2"), Bytes.toBytes("desc"),
+                    Bytes.toBytes(UUID.randomUUID().toString().replaceAll("-","")));
             table.put(put);
         }
         table.close(); System.err.println("数据插入成功");
@@ -101,23 +107,18 @@ public class Hash_example {
         Table table = conn.getTable(TableName.valueOf(tableName));
         List<Put> puts = new ArrayList<>();
         // 模拟put 10000条数据
-        for (int i = 0; i < 10000; i++) {
-            byte[] rowkey = Bytes.add(MD5Hash .getMD5AsHex(String.valueOf(System.currentTimeMillis()).getBytes()).substring(0, 8)
-                            .getBytes(), Bytes.toBytes(i));
-            Put put = new Put(rowkey);
+        for (int i = 0; i < 5000; i++) {
+            String rowkey = MD5Hash .getMD5AsHex(MyRadomUtils.getTelephone().getBytes()).substring(0,5) + "-"
+                    + MyRadomUtils.getTelephone() + "-"
+                    + String.valueOf(Long.MAX_VALUE - System.currentTimeMillis());
+            Put put = new Put(Bytes.toBytes(rowkey));
             put.addColumn(Bytes.toBytes("cf1"), Bytes.toBytes("name"),
                     Bytes.toBytes(UUID.randomUUID().toString().replaceAll("-","")));
             put.addColumn(Bytes.toBytes("cf2"), Bytes.toBytes("desc"),
                     Bytes.toBytes(UUID.randomUUID().toString().replaceAll("-","")));
             puts.add(put);
-            if (i % 10000 == 0){
-                table.put(puts);
-                puts.clear();
-            }
         }
-        if (puts.size() > 0){
-            table.put(puts);
-        }
+        table.put(puts);
         table.close(); System.err.println("数据插入成功");
     }
 
