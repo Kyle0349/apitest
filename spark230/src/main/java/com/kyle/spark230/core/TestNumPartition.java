@@ -25,6 +25,10 @@ public class TestNumPartition {
 
         JavaSparkContext jsc = SparkUtils.getJsc();
 
+        System.out.println(jsc.defaultMinPartitions());
+        System.out.println(jsc.defaultParallelism());
+
+
         JavaRDD<String> javaRDD = jsc.textFile("/Users/kyle/Downloads/user/raw_user.csv", 20);
 
         JavaRDD<String> coalesce = javaRDD.coalesce(2);
@@ -38,10 +42,21 @@ public class TestNumPartition {
      * 从hdfs读取csv
      * 按照hdfs的block大小分区
      */
-    public void readFromCSVHdfs(){
+    public void readFromCSVHdfs(String hdfsPath){
         JavaSparkContext jsc = SparkUtils.getJsc();
-        JavaRDD<String> javaRDD = jsc.textFile("hdfs://centos1:8020/tmp/raw_user.csv");
+        System.out.println(jsc.defaultMinPartitions());
+        System.out.println(jsc.defaultParallelism());
+
+        JavaRDD<String> javaRDD = jsc.textFile(hdfsPath);
         System.out.println(javaRDD.getNumPartitions());
+        JavaRDD<String> coalesce = javaRDD.coalesce(5);
+        System.out.println(coalesce.getNumPartitions());
+        coalesce.foreachPartition( fp -> {
+            while (fp.hasNext()){
+                System.out.println(fp.next());
+                break;
+            }
+        });
 
     }
 
