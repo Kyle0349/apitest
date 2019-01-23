@@ -79,7 +79,8 @@ public class SparkUtils {
     public static SparkSession getHiveSparkSession(){
         SparkSession session = SparkSession.builder()
                 .appName("spark_hive_opera")
-                .config("warehouselocation", "/user/hive/warehouse")
+                .master("local[4]")
+                .config("warehouselocation", "hdfs://centos1:8020/user/hive/warehouse")
                 .enableHiveSupport()
                 .getOrCreate();
         return session;
