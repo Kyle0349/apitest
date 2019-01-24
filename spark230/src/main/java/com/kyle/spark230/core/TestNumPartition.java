@@ -61,4 +61,30 @@ public class TestNumPartition {
     }
 
 
+    /**
+     *  测试task怎么并行读取文件
+     * @param filePath
+     */
+    public void testNumPartition(String filePath){
+        JavaSparkContext jsc = SparkUtils.getJsc();
+        JavaRDD<String> linesRdd = jsc.textFile(filePath);
+
+        System.out.println(linesRdd.getNumPartitions());
+
+        linesRdd.foreachPartition( fp -> {
+
+            int i =0;
+            while (fp.hasNext()){
+                System.out.println(i++);
+                String next = fp.next();
+                System.out.println(next);
+                System.out.println("===========");
+                Thread.sleep(1000);
+            }
+
+        });
+
+    }
+
+
 }

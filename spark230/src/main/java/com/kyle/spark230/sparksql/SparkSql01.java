@@ -23,7 +23,8 @@ import static org.apache.spark.sql.functions.*;
 
 public class SparkSql01 implements Serializable {
 
-    public void readFromMysql1(SparkSession sparkSession, String url, String table, Properties properties){
+    public void readFromMysql1(SparkSession sparkSession, String url, String table, Properties properties) throws ClassNotFoundException {
+        Class.forName("org.apache.hive.jdbc.HiveDriver");
         Dataset<Row> ds = sparkSession.read().format("jdbc").jdbc(url, table, properties);
         ds.show(10);
 
