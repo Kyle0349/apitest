@@ -1,10 +1,13 @@
 package com.kyle.spark230.utils;
 
 import org.apache.spark.SparkConf;
+import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.streaming.Durations;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
+
+import java.util.Arrays;
 
 public class SparkUtils {
 
@@ -43,14 +46,43 @@ public class SparkUtils {
                 //.set("spark.default.parallelism", "2")
                 //.set("spark.reducer.maxSizeInFlight", "24")
                 .set("spark.executor.memory", "1024m")
-                .set("spark.driver.memory","1024m")
-                .set("spark.shuffle.file.buffer","64")
-                .set("spark.shuffle.memoryFraction","0.4")
-                .setMaster("local[1]");
+                .set("spark.driver.memory","3g")
+                //.set("spark.shuffle.file.buffer","64")
+                //.set("spark.shuffle.memoryFraction","0.4")
+                .setMaster("local[2]");
         JavaSparkContext jsc = new JavaSparkContext(conf);
         jsc.setLogLevel("WARN");
         return jsc;
     }
+
+
+    public static JavaSparkContext getJscOnYarn(){
+        String[] jars = {"E:\\ideaProjects\\apitest\\classes\\artifacts\\spark_test\\spark-test.jar"};
+        System.setProperty("HADOOP_USER_NAME", "yarn");
+        SparkConf conf = new SparkConf()
+                .set("yarn.resourcemanager.hostname", "192.168.171.101")
+                .set("spark.driver.memory", "1g")
+                .set("spark.executor.memory", "1g")
+                .set("spark.executor.instances", "1")
+                .set("spark.default.parallelism", "1")
+                .set("spark.driver.host", "192.168.171.1")
+                //.set("spark.yarn.preserve.staging.files", "false")
+                //.set("spark.yarn.dist.files", "yarn-site.xml")
+                .set("spark.yarn.jars","/opt/cloudera/parcels/SPARK2/lib/spark2/jars/*")
+                .set("spark.driver.extraClassPath","/opt/cloudera/parcels/SPARK2/lib/spark2/jars/*:/opt/cloudera/parcels/CDH/jars/*")
+                .set("spark.executor.extraClassPath","/opt/cloudera/parcels/SPARK2/lib/spark2/jars/*:/opt/cloudera/parcels/CDH/jars/*")
+                //.setJars(jars)
+                .setAppName("spatk230Test")
+                .setMaster("yarn-client");
+        JavaSparkContext jsc = new JavaSparkContext(conf);
+        jsc.setLogLevel("WARN");
+        return jsc;
+    }
+
+
+
+
+
 
     public static JavaStreamingContext getStreamingContext(){
         SparkConf conf = new SparkConf()
@@ -88,6 +120,9 @@ public class SparkUtils {
                 .getOrCreate();
         return session;
     }
+
+
+
 
 
 }

@@ -2,6 +2,8 @@ package com.kyle.spark230.core;
 
 import com.kyle.spark230.utils.SparkUtils;
 import org.apache.spark.Dependency;
+import org.apache.spark.SparkConf;
+import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -29,17 +31,13 @@ public class TestNumPartition {
      * 从本地读取csv，
      * 会按照32m大小分区
      */
-    public void readFromCSVLocally() throws InterruptedException {
+    public void readFromCSVLocally(String filePath) throws InterruptedException {
 
         JavaSparkContext jsc = SparkUtils.getJsc();
-
+        jsc.addJar("E:\\ideaProjects\\apitest\\classes\\artifacts\\spark_test\\spark-test.jar");
         System.out.println("defaultMinPartitions： " + jsc.defaultMinPartitions()); //2
         System.out.println("defaultParallelism： " +  jsc.defaultParallelism()); //15
-//        JavaRDD<String> linesRdd = jsc.textFile("hdfs://centos1:8020/tmp/raw_user/raw_user.csv");
-
-//        JavaRDD<String> linesRdd1 = jsc.textFile("hdfs://centos1:8020/tmp/raw_user/raw_user.csv",15);
-
-        JavaRDD<String> linesRdd = jsc.textFile("/Users/kyle/Documents/tmp/tttt.txt");
+        JavaRDD<String> linesRdd = jsc.textFile(filePath);
         System.out.println("linesRdd： " +  linesRdd.getNumPartitions()); //5
 
         JavaRDD<String> repartitionRdd = linesRdd.repartition(3);
@@ -86,26 +84,41 @@ public class TestNumPartition {
 
     }
 
+    public static void main(String[] args) throws InterruptedException {
+        readFromCSVHdfs("hdfs://centos1:8020/tmp/access_2013_05_31.log");
+    }
+
 
     /**
      * 从hdfs读取csv
      * 按照hdfs的block大小分区
      */
-    public void readFromCSVHdfs(String hdfsPath){
-        JavaSparkContext jsc = SparkUtils.getJsc();
-        System.out.println(jsc.defaultMinPartitions());
-        System.out.println(jsc.defaultParallelism());
+    public static void readFromCSVHdfs(String hdfsPath) throws InterruptedException {
+        JavaSparkContext jsc = SparkUtils.getJscOnYarn();
+        System.out.println("defaultMinPartitions: " + jsc.defaultMinPartitions());
+        System.out.println("defaultParallelism: " + jsc.defaultParallelism());
 
-        JavaRDD<String> javaRDD = jsc.textFile(hdfsPath);
-        System.out.println(javaRDD.getNumPartitions());
-        JavaRDD<String> coalesce = javaRDD.coalesce(5);
-        System.out.println(coalesce.getNumPartitions());
-        coalesce.foreachPartition( fp -> {
+        JavaRDD<String> linesRdd = jsc.textFile(hdfsPath);
+        System.out.println("linesRdd: " + linesRdd.getNumPartitions());
+
+        JavaRDD<String> coalesceRdd = linesRdd.coalesce(5);
+        System.out.println("coalesce: " + coalesceRdd.getNumPartitions());
+
+
+        JavaPairRDD<String, String> pairRDD = coalesceRdd.mapToPair(line -> {
+            String[] split = line.split(" ");
+            return new Tuple2<>(split[0], line);
+        });
+        System.out.println("pairRDD: " + pairRDD.getNumPartitions());
+
+        pairRDD.foreachPartition( fp -> {
             while (fp.hasNext()){
-                System.out.println(fp.next());
-                break;
+                Tuple2<String, String> next = fp.next();
+                System.out.println(next._1);
             }
         });
+
+        //Thread.sleep(10000000);
 
     }
 
