@@ -11,7 +11,7 @@ public class SparkUtils {
     public static SparkConf getSparkcONF(){
         return  new SparkConf()
                 .setAppName("spatk230Test")
-                .set("spark.default.parallelism", "2")
+                //.set("spark.default.parallelism", "2")
                 //.set("spark.reducer.maxSizeInFlight", "24")
                 .set("spark.executor.memory", "512m")
                 .set("spark.streaming.kafka.maxRatePerPartition", "30") //控制spark获取kafka每个分区每秒最大数据量
@@ -39,11 +39,14 @@ public class SparkUtils {
     public static JavaSparkContext getJsc(){
         SparkConf conf = new SparkConf()
                 .setAppName("spatk230Test")
-                .set("spark.locality.wait","10")
-                //.set("spark.default.parallelism", "5")
+                //.set("spark.locality.wait","10")
+                //.set("spark.default.parallelism", "2")
                 //.set("spark.reducer.maxSizeInFlight", "24")
-                .set("spark.executor.memory", "512m")
-                .setMaster("local[*]");
+                .set("spark.executor.memory", "1024m")
+                .set("spark.driver.memory","1024m")
+                .set("spark.shuffle.file.buffer","64")
+                .set("spark.shuffle.memoryFraction","0.4")
+                .setMaster("local[1]");
         JavaSparkContext jsc = new JavaSparkContext(conf);
         jsc.setLogLevel("WARN");
         return jsc;
@@ -79,7 +82,7 @@ public class SparkUtils {
     public static SparkSession getHiveSparkSession(){
         SparkSession session = SparkSession.builder()
                 .appName("spark_hive_opera")
-                .master("local[4]")
+                .master("local[*]")
                 .config("warehouselocation", "hdfs://centos1:8020/user/hive/warehouse")
                 .enableHiveSupport()
                 .getOrCreate();
