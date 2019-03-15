@@ -16,8 +16,6 @@ public class HbaseDataGetter implements Callable<List<Result>> {
     private String tableName;
     private List<String> rowKeys;
     private List<String> filterColumn;
-    private boolean isContiansRowkeys;
-    private boolean isContainsList;
     SimpleDateFormat sdf = new SimpleDateFormat("YYYY-MM-dd HH:mm:ss");
 
 
@@ -26,8 +24,6 @@ public class HbaseDataGetter implements Callable<List<Result>> {
         this.tableName = tableName;
         this.rowKeys = rowKeys;
         this.filterColumn = fileterColumn;
-        this.isContainsList = isContainsList;
-        this.isContiansRowkeys = isContianRowkeys;
 
     }
 
@@ -54,11 +50,11 @@ public class HbaseDataGetter implements Callable<List<Result>> {
         List<Get> listGets = new ArrayList<>();
         for (String rk : rowKeys) {
             Get get = new Get(Bytes.toBytes(rk));
-//            if (filterColumns != null){
-//                for (String fc : filterColumns) {
-//                    get.addColumn("".getBytes(),fc.getBytes());
-//                }
-//            }
+            if (filterColumns != null){
+                for (String fc : filterColumns) {
+                    get.addColumn("".getBytes(),fc.getBytes());
+                }
+            }
             listGets.add(get);
         }
         try {
