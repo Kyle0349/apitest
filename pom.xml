@@ -19,8 +19,16 @@
 
     <properties>
         <junit.version>4.4</junit.version>
-        <hadoop.version>2.7.3</hadoop.version>
+        <hadoop.version>2.6.0-cdh5.14.0</hadoop.version>
+        <!--<hadoop.version>2.7.3</hadoop.version>-->
     </properties>
+
+    <repositories>
+        <repository>
+            <id>cloudera</id>
+            <url>https://repository.cloudera.com/artifactory/cloudera-repos</url>
+        </repository>
+    </repositories>
 
 
     <!--只是对版本进行管理，不会实际引入jar-->
