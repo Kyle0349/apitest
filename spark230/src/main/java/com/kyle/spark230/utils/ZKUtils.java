@@ -22,11 +22,11 @@ import java.util.List;
 public class ZKUtils implements Serializable {
 
     private static ZooKeeper zkClient = null;
-    private static String parentPath = "/";
+    private static String zkHost = "cdh01:2181,cdh02:2181,cdh03:2181";
 
     static {
         try {
-            zkClient = new ZooKeeper("centos1:2181", 5000, new Watcher() {
+            zkClient = new ZooKeeper(zkHost, 5000, new Watcher() {
                 @Override
                 public void process(WatchedEvent event) {
                     System.out.println("path: " + event.getPath());
@@ -39,7 +39,6 @@ public class ZKUtils implements Serializable {
 
     /**
      *
-
      *
      * @param zkPath
      * @throws KeeperException

@@ -51,7 +51,6 @@ public class SparkTest02 implements Serializable {
      */
     public void groupByKey(){
         JavaPairRDD<String, Integer> pairRdd = this.getPairRdd();
-
         JavaPairRDD<String, Iterable<Integer>> groupByKeyRdd = pairRdd.groupByKey();
         groupByKeyRdd.foreachPartition(tuples -> {
             while (tuples.hasNext()){

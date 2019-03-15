@@ -3,7 +3,6 @@ package com.kyle.spark230.utils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.zookeeper.KeeperException;
-
 import java.util.*;
 
 
@@ -11,7 +10,6 @@ public class MyKafkaUtils {
 
     private static String parentPath = "/consumers/spark_kafka/offset";
     private static long initOffset = 0L;
-    private static int initPartition = 3;
 
 
     /**

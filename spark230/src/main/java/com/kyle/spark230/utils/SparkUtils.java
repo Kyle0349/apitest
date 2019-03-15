@@ -20,13 +20,13 @@ public class SparkUtils {
                 .set("spark.streaming.kafka.maxRatePerPartition", "30") //控制spark获取kafka每个分区每秒最大数据量
                 .set("spark.serializer","org.apache.spark.serializer.KryoSerializer")
                 .set("spark.kryo.registrator","com.kyle.spark230.utils.MyRegistrator") //解决序列化
-                .setMaster("local[1]");
+                .setMaster("local[3]");
     }
 
     public static JavaStreamingContext getStreamingContext(SparkConf conf){
         JavaSparkContext jsc = new JavaSparkContext(conf);
         jsc.setLogLevel("WARN");
-        return new JavaStreamingContext(jsc, Durations.seconds(3));
+        return new JavaStreamingContext(jsc, Durations.seconds(30));
     }
 
 
@@ -46,7 +46,7 @@ public class SparkUtils {
                 //.set("spark.default.parallelism", "2")
                 //.set("spark.reducer.maxSizeInFlight", "24")
                 .set("spark.executor.memory", "1024m")
-                .set("spark.driver.memory","3g")
+                .set("spark.driver.memory","1g")
                 //.set("spark.shuffle.file.buffer","64")
                 //.set("spark.shuffle.memoryFraction","0.4")
                 .setMaster("local[2]");
@@ -57,21 +57,19 @@ public class SparkUtils {
 
 
     public static JavaSparkContext getJscOnYarn(){
-        String[] jars = {"E:\\ideaProjects\\apitest\\classes\\artifacts\\spark_test\\spark-test.jar"};
         System.setProperty("HADOOP_USER_NAME", "yarn");
+        String[] jars = {"/Users/kyle/Documents/kyle/sourceCode/apitest/out/artifacts/spark_test/spark-test.jar"};
         SparkConf conf = new SparkConf()
-                .set("yarn.resourcemanager.hostname", "192.168.171.101")
-                .set("spark.driver.memory", "1g")
-                .set("spark.executor.memory", "1g")
+                .set("yarn.resourcemanager.hostname", "172.16.131.101")
+                .set("spark.driver.memory", "512m")
+                .set("spark.executor.memory", "512m")
                 .set("spark.executor.instances", "1")
                 .set("spark.default.parallelism", "1")
-                .set("spark.driver.host", "192.168.171.1")
+                .set("spark.driver.host", "172.16.131.1")
+                .set("yarn.application.classpath", "/opt/cloudera/parcels/SPARK2/lib/spark2/jars/*:/opt/cloudera/parcels/CDH/jars/*")
                 //.set("spark.yarn.preserve.staging.files", "false")
                 //.set("spark.yarn.dist.files", "yarn-site.xml")
-                .set("spark.yarn.jars","/opt/cloudera/parcels/SPARK2/lib/spark2/jars/*")
-                .set("spark.driver.extraClassPath","/opt/cloudera/parcels/SPARK2/lib/spark2/jars/*:/opt/cloudera/parcels/CDH/jars/*")
-                .set("spark.executor.extraClassPath","/opt/cloudera/parcels/SPARK2/lib/spark2/jars/*:/opt/cloudera/parcels/CDH/jars/*")
-                //.setJars(jars)
+                .setJars(jars)
                 .setAppName("spatk230Test")
                 .setMaster("yarn-client");
         JavaSparkContext jsc = new JavaSparkContext(conf);
@@ -79,23 +77,18 @@ public class SparkUtils {
         return jsc;
     }
 
-
-
-
-
-
     public static JavaStreamingContext getStreamingContext(){
         SparkConf conf = new SparkConf()
-                .setMaster("local[2]")
+                .setMaster("local[3]")
                 .setAppName("Stream230Test")
                 .set("spark.executor.memory", "512m")
                 .set("spark.serializer","org.apache.spark.serializer.KryoSerializer")
                 .set("spark.kryo.registrator","com.kyle.spark230.utils.MyRegistrator")
-                .set("spark.default.parallelism", "2");
+                .set("spark.default.parallelism", "1");
         JavaSparkContext jsc = new JavaSparkContext(conf);
         jsc.setLogLevel("WARN");
 
-        JavaStreamingContext jssc = new JavaStreamingContext(jsc, Durations.seconds(3));
+        JavaStreamingContext jssc = new JavaStreamingContext(jsc, Durations.seconds(2));
         return jssc;
 
     }
@@ -115,7 +108,8 @@ public class SparkUtils {
         SparkSession session = SparkSession.builder()
                 .appName("spark_hive_opera")
                 .master("local[*]")
-                .config("warehouselocation", "hdfs://centos1:8020/user/hive/warehouse")
+                .config("spark.sql.shuffle.partitions","100")
+                .config("warehouselocation", "hdfs://cdh01:8020/user/hive/warehouse")
                 .enableHiveSupport()
                 .getOrCreate();
         return session;

@@ -7,14 +7,17 @@ import org.apache.spark.api.java.JavaSparkContext;
 public class SparkTest05 {
 
 
-    public void getWordRdd(){
+    public void getWordRdd() throws InterruptedException {
 
         JavaSparkContext jsc = SparkUtils.getJsc();
-        JavaRDD<String> lines = jsc.textFile("/Users/kyle/Documents/tmp/tttt.txt");
+        JavaRDD<String> lines = jsc.textFile("file:///Users/kyle/Documents/tmp/tttt.txt");
         JavaRDD<String> word = lines.map(line -> line.split(",")[3]);
 
         lines.coalesce(3);
         lines.repartition(3);
+
+        lines.isEmpty();
+
 
         word.foreachPartition( stringIterator -> {
             while (stringIterator.hasNext()){
@@ -22,8 +25,7 @@ public class SparkTest05 {
                 System.out.println(next);
             }
         });
-
-
+        Thread.sleep(100000);
     }
 
 

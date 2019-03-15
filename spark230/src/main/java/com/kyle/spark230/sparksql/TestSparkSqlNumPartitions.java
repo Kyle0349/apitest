@@ -1,7 +1,6 @@
 package com.kyle.spark230.sparksql;
 
 import com.kyle.spark230.utils.SparkUtils;
-import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
@@ -20,19 +19,14 @@ public class TestSparkSqlNumPartitions {
     public  void testNumPartitions(String db, String sql) {
         SparkSession hiveSparkSession = SparkUtils.getHiveSparkSession();
         hiveSparkSession.sql("use " + db);
-
         Dataset<Row> ds = hiveSparkSession.sql(sql);
-
         System.out.println(ds.toJavaRDD().getNumPartitions()); //8
 
+        ds.registerTempTable("tttt");
 
+        Dataset<Row> sql1 = ds.sqlContext().sql("select user_id,count(item_id) from tttt group by user_id");
 
-
-
-
-
-
-
+        System.out.println(sql1.toJavaRDD().getNumPartitions());
 
 
 //        Dataset<Row> repartition = ds.repartition(3);

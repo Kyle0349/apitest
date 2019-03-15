@@ -15,6 +15,7 @@ public class TestTaskReadFile {
         System.out.println(linesRdd.getNumPartitions());
 
 
+
         JavaPairRDD<String, String> pairRdd = linesRdd.mapToPair(line -> {
             String[] split = line.split(" ");
             return new Tuple2<>(split[0], line);

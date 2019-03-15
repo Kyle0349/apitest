@@ -1,7 +1,17 @@
 package com.kyle.spark230.sparkstreaming;
 
+import com.kyle.spark230.utils.HbaseUtils;
 import com.kyle.spark230.utils.MyKafkaUtils;
 import com.kyle.spark230.utils.SparkUtils;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Connection;
+import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.client.Table;
+import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
+import org.apache.hadoop.hbase.mapred.TableOutputFormat;
+import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.mapred.JobConf;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.spark.SparkConf;
@@ -15,19 +25,15 @@ import org.apache.zookeeper.KeeperException;
 import scala.Tuple2;
 
 import java.io.Serializable;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 
 /**
  * kafka
  */
-public class SparkStreaming01 implements Serializable {
+public class KafkaSparkStreaming01 implements Serializable {
 
     private static  Broadcast<Map<String, Object>> kafkaParamsBroadcast = null;
-
 
     public void readFromKafka(Map<String, Object> kafkaParams, String topic, Integer[] partitions)
             throws InterruptedException, KeeperException {
@@ -42,8 +48,10 @@ public class SparkStreaming01 implements Serializable {
                 ConsumerStrategies.Subscribe(topics, kafkaParams, offsets)
         );
 
-        //handle dataRdd
-        directStreamHandler(directStream);
+        //directStreamHandler(directStream);
+        //ds2Hbase(directStream);
+        //ds2Hbase03(directStream);
+        ds2Hbase02(directStream);
         jssc.start();
         jssc.awaitTermination();
     }
@@ -70,9 +78,7 @@ public class SparkStreaming01 implements Serializable {
         Map<TopicPartition, Long> offsets = MyKafkaUtils.getOffsets(
                 kafkaParams.get("group.id").toString(), topic, partitions);
 
-
         DefaultPerPartitionConfig defaultPerPartitionConfig = new DefaultPerPartitionConfig(conf);
-
         JavaInputDStream<ConsumerRecord<String, String>> directStream = KafkaUtils.createDirectStream(
                 jssc,
                 LocationStrategies.PreferConsistent(),
@@ -227,5 +233,131 @@ public class SparkStreaming01 implements Serializable {
     }
 
 
+    /**
+     *  使用saveAsHadoopDataset的方式将数据写入hbase
+     * @param directStream
+     */
+    public void ds2Hbase(JavaInputDStream<ConsumerRecord<String, String>> directStream){
+        directStream.foreachRDD( rdd -> {
+            if (!rdd.isEmpty()){
+                Connection conn = HbaseUtils.getConn();
+                Configuration hConf = conn.getConfiguration();
+                JobConf jobConf = new JobConf(hConf, this.getClass());
+                jobConf.setOutputFormat(TableOutputFormat.class);
+                jobConf.set(TableOutputFormat.OUTPUT_TABLE,"htable02");
+                rdd.mapToPair( x -> {
+                    Put put = new Put(Bytes.toBytes(x.key()));
+                    put.addColumn(Bytes.toBytes("info"), Bytes.toBytes("name"), Bytes.toBytes(x.value()));
+                    return new Tuple2<>(new ImmutableBytesWritable(), put);
+                }).saveAsHadoopDataset(jobConf);
+            }
+        });
+    }
+
+
+    /**
+     * 使用put的方式 单条写入hbase
+     * @param directStream
+     */
+    public void ds2Hbase02(JavaInputDStream<ConsumerRecord<String, String>> directStream){
+
+        directStream.foreachRDD( rdd -> {
+            if (!rdd.isEmpty()){
+                rdd.foreachPartition( fp ->{
+                    Connection conn = HbaseUtils.getConn();
+                    Table htable03 = conn.getTable(TableName.valueOf("htable03"));
+                    String kafkaTopic;
+                    int partition;
+                    long offset1;
+                    while (fp.hasNext()){
+                        ConsumerRecord<String, String> record = fp.next();
+                        kafkaTopic = record.topic();
+                        partition = record.partition();
+                        offset1 = record.offset();
+                        Put put = new Put(Bytes.toBytes(record.key()));
+                        put.addColumn(Bytes.toBytes("info"), Bytes.toBytes("name"), Bytes.toBytes(record.value()));
+                        htable03.put(put);
+
+                        //update zookeeper
+                        TopicPartition topicPartition = new TopicPartition(kafkaTopic, partition);
+                        MyKafkaUtils.updateOffset(
+                                String.valueOf(kafkaParamsBroadcast.getValue().get("group.id")),
+                                topicPartition,
+                                offset1 + 1);
+                    }
+                    htable03.close();
+                    conn.close();
+
+                });
+            }
+        });
+    }
+
+
+    /**
+     * 使用put的方式 批量写入hbase
+     * @param directStream
+     */
+    public void ds2Hbase03(JavaInputDStream<ConsumerRecord<String, String>> directStream){
+
+        directStream.foreachRDD( rdd -> {
+            if (!rdd.isEmpty()){
+                rdd.foreachPartition( fp -> {
+                    Connection conn = HbaseUtils.getConn();
+                    Table htable04 = conn.getTable(TableName.valueOf("htable04"));
+                    ArrayList<Put> puts = new ArrayList<>();
+                    String kafkaTopic;
+                    int partition;
+                    long offset1;
+                    while (fp.hasNext()){
+                        ConsumerRecord<String, String> record = fp.next();
+                        kafkaTopic = record.topic();
+                        partition = record.partition();
+                        offset1 = record.offset();
+                        Put put = new Put(Bytes.toBytes(record.key()));
+                        put.addColumn(Bytes.toBytes("info"), Bytes.toBytes("name"), Bytes.toBytes(record.value()));
+                        puts.add(put);
+                        //update zookeeper
+                        TopicPartition topicPartition = new TopicPartition(kafkaTopic, partition);
+                        MyKafkaUtils.updateOffset(
+                                String.valueOf(kafkaParamsBroadcast.getValue().get("group.id")),
+                                topicPartition,
+                                offset1 + 1);
+                    }
+                    htable04.put(puts);
+                    htable04.close();
+                    conn.close();
+                });
+            }
+
+        });
+
+    }
+
+
+
+
+
+
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

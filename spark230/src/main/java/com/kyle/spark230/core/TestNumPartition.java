@@ -1,18 +1,10 @@
 package com.kyle.spark230.core;
 
 import com.kyle.spark230.utils.SparkUtils;
-import org.apache.spark.Dependency;
-import org.apache.spark.SparkConf;
-import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.rdd.RDD;
 import scala.Tuple2;
-import scala.collection.Iterator;
-import scala.collection.Seq;
-
-import java.util.List;
 
 
 /**
@@ -34,7 +26,7 @@ public class TestNumPartition {
     public void readFromCSVLocally(String filePath) throws InterruptedException {
 
         JavaSparkContext jsc = SparkUtils.getJsc();
-        jsc.addJar("E:\\ideaProjects\\apitest\\classes\\artifacts\\spark_test\\spark-test.jar");
+        jsc.addJar("/Users/kyle/Documents/kyle/sourceCode/apitest/out/artifacts/spark_test/spark-test.jar");
         System.out.println("defaultMinPartitions： " + jsc.defaultMinPartitions()); //2
         System.out.println("defaultParallelism： " +  jsc.defaultParallelism()); //15
         JavaRDD<String> linesRdd = jsc.textFile(filePath);
@@ -47,7 +39,6 @@ public class TestNumPartition {
             return new Tuple2<>(split[0], line);
         });
         System.out.println("pairRdd： " +  pairRdd.getNumPartitions()); //5
-
 
         JavaPairRDD<String, Iterable<String>> groupRdd = pairRdd.groupByKey();
         System.out.println("groupRdd： " +  groupRdd.getNumPartitions());        //15
@@ -85,16 +76,17 @@ public class TestNumPartition {
     }
 
     public static void main(String[] args) throws InterruptedException {
-        readFromCSVHdfs("hdfs://centos1:8020/tmp/access_2013_05_31.log");
+        readFromCSVHdfs("hdfs://centos1:8020/tmp/test/tttts.txt");
     }
-
-
     /**
      * 从hdfs读取csv
      * 按照hdfs的block大小分区
      */
     public static void readFromCSVHdfs(String hdfsPath) throws InterruptedException {
         JavaSparkContext jsc = SparkUtils.getJscOnYarn();
+
+        jsc.addJar("/Users/kyle/Documents/kyle/sourceCode/apitest/out/artifacts/spark_test/spark-test.jar");
+
         System.out.println("defaultMinPartitions: " + jsc.defaultMinPartitions());
         System.out.println("defaultParallelism: " + jsc.defaultParallelism());
 
@@ -106,7 +98,7 @@ public class TestNumPartition {
 
 
         JavaPairRDD<String, String> pairRDD = coalesceRdd.mapToPair(line -> {
-            String[] split = line.split(" ");
+            String[] split = line.split(",");
             return new Tuple2<>(split[0], line);
         });
         System.out.println("pairRDD: " + pairRDD.getNumPartitions());
@@ -117,8 +109,6 @@ public class TestNumPartition {
                 System.out.println(next._1);
             }
         });
-
-        //Thread.sleep(10000000);
 
     }
 
